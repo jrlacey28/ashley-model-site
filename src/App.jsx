@@ -2,13 +2,32 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Instagram, Mail, Menu, X, ChevronRight, ArrowLeft, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const allPhotos = Object.entries(
-  import.meta.glob("./assets/photos/*.{jpg,JPG,jpeg,png}", {
-    import: "default"
-  })
-)
-  .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-  .map(([, loader]) => loader);
+const HERO_PATH = "./assets/photos/A.Wachtendonk-17.JPG";
+const SHOOT_FOLDER_RE = /^(\d{4})-(\d{2})-(\d{2})-(.+)$/;
+const coverRegex = /^cover\.(jpg|jpeg|png)$/i;
+const PHOTO_ROOT_PREFIX = "./assets/photos/";
+
+const photoLoaders = import.meta.glob("./assets/photos/**/*.{jpg,JPG,jpeg,png}", {
+  import: "default"
+});
+
+const toTitleCase = (value) =>
+  value
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+const getFolderDateValue = (folderName) => {
+  const match = folderName.match(SHOOT_FOLDER_RE);
+
+  if (!match) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const [, year, month, day] = match;
+  return Date.UTC(Number(year), Number(month) - 1, Number(day));
+};
 
 const LazyPhoto = React.memo(({ loader, alt, className, priority = false }) => {
   const [src, setSrc] = useState(null);
@@ -88,8 +107,90 @@ const App = () => {
   const [scrolled, setScrolled] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
 
-  const heroPhoto = allPhotos[0];
-  const galleryPhotos = useMemo(() => allPhotos.slice(1), []);
+  const heroPhoto = photoLoaders[HERO_PATH];
+
+  const { shoots, digitalImages } = useMemo(() => {
+    const shootsByFolder = new Map();
+    const digitals = [];
+
+    Object.entries(photoLoaders).forEach(([path, loader]) => {
+      if (path === HERO_PATH || !path.startsWith(PHOTO_ROOT_PREFIX)) {
+        return;
+      }
+
+      const relativePath = path.slice(PHOTO_ROOT_PREFIX.length);
+      const parts = relativePath.split("/");
+
+      if (parts.length < 2) {
+        return;
+      }
+
+      const folderName = parts[0];
+      const fileName = parts[parts.length - 1];
+
+      if (folderName.toLowerCase() === "digitals") {
+        digitals.push({ fileName, loader });
+        return;
+      }
+
+      if (!SHOOT_FOLDER_RE.test(folderName)) {
+        return;
+      }
+
+      if (!shootsByFolder.has(folderName)) {
+        shootsByFolder.set(folderName, []);
+      }
+
+      shootsByFolder.get(folderName).push({ path, fileName, loader });
+    });
+
+    const builtShoots = Array.from(shootsByFolder.entries())
+      .sort(([folderA], [folderB]) => {
+        const dateDiff = getFolderDateValue(folderB) - getFolderDateValue(folderA);
+
+        if (dateDiff !== 0) {
+          return dateDiff;
+        }
+
+        return folderB.localeCompare(folderA, undefined, { sensitivity: "base" });
+      })
+      .map(([folderName, files]) => {
+        const sortedFiles = [...files].sort((a, b) =>
+          a.fileName.localeCompare(b.fileName, undefined, { sensitivity: "base" })
+        );
+
+        if (sortedFiles.length === 0) {
+          return null;
+        }
+
+        const coverFile = sortedFiles.find((file) => coverRegex.test(file.fileName)) || sortedFiles[0];
+        const gallery = sortedFiles
+          .filter((file) => file.path !== coverFile.path)
+          .map((file) => file.loader);
+
+        const match = folderName.match(SHOOT_FOLDER_RE);
+        const slug = match ? match[4] : folderName;
+
+        return {
+          id: folderName,
+          title: toTitleCase(slug),
+          category: "Creative Shoot",
+          image: coverFile.loader,
+          gallery,
+        };
+      })
+      .filter(Boolean);
+
+    const sortedDigitals = digitals
+      .sort((a, b) => a.fileName.localeCompare(b.fileName, undefined, { sensitivity: "base" }))
+      .map((file) => file.loader)
+      .slice(0, 3);
+
+    return {
+      shoots: builtShoots,
+      digitalImages: sortedDigitals,
+    };
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -106,38 +207,6 @@ const App = () => {
     return null;
   }
 
-  const portfolioItems = useMemo(
-    () =>
-      [
-        { id: 1, title: 'Editorial', category: 'High Fashion' },
-        { id: 2, title: 'Beauty', category: 'Commercial' },
-        { id: 3, title: 'Streetwear', category: 'Lifestyle' },
-        { id: 4, title: 'Evening', category: 'Gala' },
-        { id: 5, title: 'Simplicity', category: 'Portrait' },
-        { id: 6, title: 'Motion', category: 'Campaign' },
-      ]
-        .map((item, index) => {
-          const image = galleryPhotos[index];
-
-          if (!image) {
-            return null;
-          }
-
-          return {
-            ...item,
-            image,
-            gallery: galleryPhotos.slice(index + 1, index + 4),
-          };
-        })
-        .filter(Boolean),
-    [galleryPhotos]
-  );
-
-  const digitalImages = useMemo(
-    () => galleryPhotos.slice(portfolioItems.length, portfolioItems.length + 3),
-    [galleryPhotos, portfolioItems.length]
-  );
-
   const fadeUp = {
     initial: { opacity: 0, y: 30 },
     whileInView: { opacity: 1, y: 0 },
@@ -152,7 +221,7 @@ const App = () => {
         <motion.div 
           onClick={() => setSelectedProject(null)}
           className={`text-xl font-bold tracking-[0.3em] uppercase cursor-pointer transition-colors duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
-          ASHLEY W
+          ASHLEY WACHTENDONK
         </motion.div>
         
         <div className={`hidden md:flex gap-12 items-center text-[10px] uppercase tracking-[0.25em] font-medium transition-colors duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
@@ -224,7 +293,7 @@ const App = () => {
               </motion.div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-y-16">
-                {portfolioItems.map((item, index) => (
+                {shoots.map((item, index) => (
                   <motion.div 
                     key={item.id}
                     initial={{ opacity: 0, y: 30 }}
@@ -265,12 +334,13 @@ const App = () => {
 
                       <div className="grid grid-cols-2 gap-x-12 gap-y-16">
                         {[
-                          { label: 'Height', value: "5'7\" / 170cm" },
+                          { label: 'Height', value: "5'8\" / 173cm" },
                           { label: 'Bust', value: '32" / 81cm' },
-                          { label: 'Waist', value: '24" / 61cm' },
-                          { label: 'Hips', value: '34" / 86cm' },
-                          { label: 'Eyes', value: 'Blue-Grey' },
-                          { label: 'Hair', value: 'Light Brown' }
+                          { label: 'Waist', value: '25" / 63cm' },
+                          { label: 'Hips', value: '35.5" / 90cm' },
+                          { label: 'Eyes', value: 'Blue-Green-Grey' },
+                          { label: 'Shoe', value: '7.5 US / 38 EU' },
+                          { label: 'Hair', value: 'Dark Blonde' }
                         ].map((stat, i) => (
                           <div key={i} className="space-y-4">
                             <p className="text-[10px] uppercase tracking-[0.5em] text-white/30 font-bold">{stat.label}</p>
@@ -284,7 +354,7 @@ const App = () => {
                   {/* Right Column Digitals Grid */}
                   <div className="lg:col-span-7 mt-12 lg:mt-0">
                     <div className="flex justify-between items-end mb-6 px-1">
-                      <span className="text-[10px] uppercase tracking-[0.5em] text-white/40 font-bold">Digital Polaroids</span>
+                      <span className="text-[10px] uppercase tracking-[0.5em] text-white/40 font-bold">Digitals</span>
                       <span className="text-[10px] uppercase tracking-[0.5em] text-white/10 font-bold">Raw & Unedited</span>
                     </div>
 
@@ -335,10 +405,9 @@ const App = () => {
             <footer id="contact" className="py-40 px-6 bg-[#E5EAEF] text-center">
               <motion.div {...fadeUp} className="max-w-5xl mx-auto">
                 <span className="text-[10px] uppercase tracking-[0.8em] text-[#5F7A91] block mb-12 font-bold">Booking</span>
-                <a href="mailto:work@ashleyw.com" className="text-4xl md:text-7xl lg:text-8xl font-serif italic hover:text-[#5F7A91] transition-all duration-700 tracking-tighter block mb-20 text-[#1A1F2B]">work@ashleyw.com</a>
+                <a href="mailto:wachtendonkashley@gmail.com" className="text-4xl md:text-7xl lg:text-7xl font-serif italic hover:text-[#5F7A91] transition-all duration-700 tracking-tighter block mb-20 text-[#1A1F2B]">wachtendonkashley@gmail.com</a>
                 <div className="flex justify-center gap-12 text-[10px] uppercase tracking-[0.5em] font-bold">
-                  <a href="#" className="hover:text-[#5F7A91]">Instagram</a>
-                  <a href="#" className="hover:text-[#5F7A91]">LinkedIn</a>
+                  <a href="https://www.instagram.com/ajmwachtendonk/" className="hover:text-[#5F7A91]">Instagram</a>
                 </div>
               </motion.div>
             </footer>
