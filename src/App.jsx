@@ -451,7 +451,7 @@ const App = () => {
       <nav className={`fixed w-full z-[100] transition-all duration-700 px-6 py-4 flex justify-between items-center ${scrolled || isProjectRoute ? 'bg-[#E5EAEF]/90 backdrop-blur-md py-3 border-b border-[#1A1F2B]/5 shadow-sm' : 'bg-transparent'}`}>
         <Motion.div 
           onClick={goHome}
-          className={`text-xl font-bold tracking-[0.3em] uppercase cursor-pointer transition-all duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B] opacity-100 pointer-events-auto' : 'text-white opacity-0 pointer-events-none'}`}>
+          className={`flex-1 min-w-0 pr-4 text-[0.7rem] sm:text-[0.78rem] md:text-xl font-bold tracking-[0.16em] md:tracking-[0.3em] whitespace-nowrap uppercase cursor-pointer transition-all duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B] opacity-100 pointer-events-auto' : 'text-white opacity-0 pointer-events-none'}`}>
           ASHLEY WACHTENDONK
         </Motion.div>
         
@@ -461,7 +461,7 @@ const App = () => {
           <button onClick={() => goToSection("contact")} className="hover:text-[#5F7A91] transition-colors">Contact</button>
         </div>
 
-        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`md:hidden p-2 transition-colors duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
+        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`md:hidden ml-2 shrink-0 p-2 transition-colors duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
           {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </nav>
@@ -577,8 +577,8 @@ const App = () => {
                       grabCursor={shoots.length > 1}
                       simulateTouch={shoots.length > 1}
                       allowTouchMove={shoots.length > 1}
-                      preventClicks
-                      preventClicksPropagation
+                      preventClicks={false}
+                      preventClicksPropagation={false}
                       touchStartPreventDefault={false}
                       threshold={8}
                       watchSlidesProgress
@@ -717,43 +717,40 @@ const App = () => {
                       <span className="text-[10px] uppercase tracking-[0.5em] text-white/10 font-bold">Raw & Unedited</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-2 grid-rows-2 gap-6">
                       <Motion.div 
                         initial={{ opacity: 0, scale: 0.98 }}
                         whileInView={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 1.2 }}
                         viewport={{ once: true }}
-                        className="aspect-[4/5] md:aspect-[3/4] bg-white/5 overflow-hidden"
+                        className="row-span-2 bg-white/5 overflow-hidden"
                       >
                         {digitalImages[0] && (
-                          <LazyPhoto loader={digitalImages[0]} className="w-full h-full object-cover object-[center_90%] hover:opacity-100 transition-opacity duration-700" alt="Ashley Digital" />
+                          <LazyPhoto loader={digitalImages[0]} className="w-full h-full object-cover object-center hover:opacity-100 transition-opacity duration-700" alt="Ashley Digital" />
                         )}
                       </Motion.div>
-
-                      <div className="grid grid-rows-2 gap-6">
-                        <Motion.div 
-                          initial={{ opacity: 0, x: 20 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.8, delay: 0.2 }}
-                          viewport={{ once: true }}
-                          className="aspect-square bg-white/5 overflow-hidden"
-                        >
-                          {digitalImages[1] && (
-                            <LazyPhoto loader={digitalImages[1]} className="w-full h-full object-cover hover:opacity-100 transition-opacity duration-700" alt="Ashley Profile" />
-                          )}
-                        </Motion.div>
-                        <Motion.div 
-                          initial={{ opacity: 0, x: 20 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.8, delay: 0.4 }}
-                          viewport={{ once: true }}
-                          className="aspect-square bg-white/5 overflow-hidden"
-                        >
-                          {digitalImages[2] && (
-                            <LazyPhoto loader={digitalImages[2]} className="w-full h-full object-cover hover:opacity-100 transition-opacity duration-700" alt="Ashley Full Body" />
-                          )}
-                        </Motion.div>
-                      </div>
+                      <Motion.div 
+                        initial={{ opacity: 0, x: 20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                        viewport={{ once: true }}
+                        className="aspect-square bg-white/5 overflow-hidden"
+                      >
+                        {digitalImages[1] && (
+                          <LazyPhoto loader={digitalImages[1]} className="w-full h-full object-cover object-[center_25%] hover:opacity-100 transition-opacity duration-700" alt="Ashley Profile" />
+                        )}
+                      </Motion.div>
+                      <Motion.div 
+                        initial={{ opacity: 0, x: 20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.8, delay: 0.4 }}
+                        viewport={{ once: true }}
+                        className="aspect-square bg-white/5 overflow-hidden"
+                      >
+                        {digitalImages[2] && (
+                          <LazyPhoto loader={digitalImages[2]} className="w-full h-full object-cover object-[center_25%] hover:opacity-100 transition-opacity duration-700" alt="Ashley Full Body" />
+                        )}
+                      </Motion.div>
                     </div>
                   </div>
                 </div>
@@ -764,7 +761,7 @@ const App = () => {
             <footer id="contact" className="py-40 px-6 bg-[#E5EAEF] text-center">
               <Motion.div {...fadeUp} className="max-w-5xl mx-auto">
                 <span className="text-[10px] uppercase tracking-[0.8em] text-[#5F7A91] block mb-12 font-bold">Booking</span>
-                <a href="mailto:wachtendonkashley@gmail.com" className="text-4xl md:text-7xl lg:text-7xl font-tt-commons-expanded-thin hover:text-[#5F7A91] transition-all duration-700 tracking-tighter block mb-20 text-[#1A1F2B]">wachtendonkashley@gmail.com</a>
+                <a href="mailto:wachtendonkashley@gmail.com" className="max-w-full px-1 text-[clamp(0.84rem,4vw,1.08rem)] md:text-7xl lg:text-7xl font-tt-commons-expanded-thin hover:text-[#5F7A91] transition-all duration-700 tracking-[0.02em] md:tracking-tighter block mb-20 text-[#1A1F2B] [overflow-wrap:anywhere]">wachtendonkashley@gmail.com</a>
                 <div className="flex justify-center gap-12 text-[10px] uppercase tracking-[0.5em] font-tt-commons-expanded-thin">
                   <a href="https://www.instagram.com/ajmwachtendonk/" className="hover:text-[#5F7A91]">Instagram</a>
                 </div>
