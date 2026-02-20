@@ -574,12 +574,13 @@ const App = () => {
                       centeredSlides
                       centeredSlidesBounds={false}
                       slidesPerView="auto"
-                      grabCursor={false}
-                      simulateTouch={false}
-                      allowTouchMove={false}
-                      preventClicks={false}
-                      preventClicksPropagation={false}
+                      grabCursor={shoots.length > 1}
+                      simulateTouch={shoots.length > 1}
+                      allowTouchMove={shoots.length > 1}
+                      preventClicks
+                      preventClicksPropagation
                       touchStartPreventDefault={false}
+                      threshold={8}
                       watchSlidesProgress
                       creativeEffect={{
                         prev: {
@@ -632,7 +633,7 @@ const App = () => {
                               </button>
                               <button
                                 type="button"
-                                className={`work-slider-view-btn text-white text-[9px] uppercase tracking-[0.4em] border border-white/40 px-5 py-2 backdrop-blur-md ${isActive ? 'is-active' : ''}`}
+                                className={`work-slider-view-btn swiper-no-swiping text-white text-[9px] uppercase tracking-[0.4em] border border-white/40 px-5 py-2 backdrop-blur-md ${isActive ? 'is-active' : ''}`}
                                 onClick={openActiveProject}
                                 aria-label={activeWorkProject ? `View photos for ${activeWorkProject.title}` : "View photos"}
                                 disabled={!isActive}

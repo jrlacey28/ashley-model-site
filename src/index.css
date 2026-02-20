@@ -270,12 +270,15 @@ html {
   }
 
   .work-slider-shell {
-    height: 95vh;
-    height: 95svh;
+    min-height: 95vh;
+    min-height: 95svh;
+    height: auto;
   }
 
   .work-slider-content {
-    padding: 1.2rem 1rem 0.9rem;
+    min-height: 95vh;
+    min-height: 95svh;
+    padding: 1.2rem 1rem calc(1rem + env(safe-area-inset-bottom));
   }
 
   .work-slider-head {
@@ -284,9 +287,13 @@ html {
     gap: 0.5rem;
   }
 
+  .work-slider-main-wrap {
+    margin-top: 0.8rem;
+  }
+
   .work-slider-main {
     width: 100%;
-    height: clamp(24rem, 56vh, 31rem);
+    height: clamp(20rem, 49vh, 27rem);
   }
 
   .work-slider-main .swiper-slide {
@@ -299,7 +306,8 @@ html {
 
   .work-slider-cover-hit {
     width: min(82vw, 20rem);
-    height: clamp(24rem, 56vh, 31rem);
+    height: clamp(20rem, 49vh, 27rem);
+    pointer-events: none;
   }
 
   .work-slider-cover-hit.is-landscape {
@@ -310,7 +318,10 @@ html {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.85rem;
-    padding-top: 0.75rem;
+    margin-top: 0.4rem;
+    padding-top: 0.65rem;
+    position: relative;
+    z-index: 15;
   }
 
   .work-slider-project-meta {

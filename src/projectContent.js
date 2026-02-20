@@ -36,7 +36,7 @@ export const PROJECT_CONTENT = {
     title: "High Fashion",
     header: "High Fashion Shoot",
     category: "High Fashion Shoot",
-    description: "Update this description in src/projectContent.js.",
+    description: "An exploration of clean silhouettes and intentional movement.",
   },
   "beauty-and-portraits": {
     title: "Beauty & Portraits",
