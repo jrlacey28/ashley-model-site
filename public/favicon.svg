@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <style>
+      .cls-1, .cls-2 {
+        fill: #fff;
+      }
+
+      .cls-3 {
+        font-size: 73.74px;
+        letter-spacing: -.02em;
+      }
+
+      .cls-3, .cls-4 {
+        font-family: TimesNewRomanPSMT, 'Times New Roman';
+      }
+
+      .cls-2 {
+        stroke: #000;
+        stroke-miterlimit: 10;
+        stroke-width: .75px;
+      }
+
+      .cls-4 {
+        font-size: 77.21px;
+        letter-spacing: -.06em;
+      }
+    </style>
+  </defs>
+  <circle class="cls-2" cx="50.29" cy="50.26" r="42.59"/>
+  <text class="cls-3" transform="translate(25.46 74.89)"><tspan x="0" y="0">W</tspan></text>
+  <text class="cls-4" transform="translate(6.85 76.08)"><tspan x="0" y="0">A</tspan></text>
+  <rect class="cls-1" x="32.11" y="23.33" width="4.43" height="2.74"/>
+  <rect class="cls-1" x="24.2" y="23.48" width="10.2" height="6.3" transform="translate(65.65 10.91) rotate(114.36)"/>
+  <polygon class="cls-1" points="51.19 62.1 36.11 25.39 46.05 25.39 51.19 62.1"/>
+</svg>
