@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Instagram, Mail, Menu, X, ChevronRight, ArrowLeft, Eye } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Menu, X, ArrowLeft } from 'lucide-react';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { A11y, EffectCreative, EffectFade, Navigation, Pagination } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/effect-creative';
+import 'swiper/css/effect-fade';
+import 'swiper/css/navigation';
+import 'swiper/css/pagination';
 
 const HERO_PATH = "./assets/photos/A.Wachtendonk-17.JPG";
 const SHOOT_FOLDER_RE = /^(\d{4})-(\d{2})-(\d{2})-(.+)$/;
@@ -18,6 +25,8 @@ const toTitleCase = (value) =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
+const toCounterValue = (value) => value.toString().padStart(2, "0");
+
 const getFolderDateValue = (folderName) => {
   const match = folderName.match(SHOOT_FOLDER_RE);
 
@@ -31,16 +40,11 @@ const getFolderDateValue = (folderName) => {
 
 const LazyPhoto = React.memo(({ loader, alt, className, priority = false }) => {
   const [src, setSrc] = useState(null);
-  const [shouldLoad, setShouldLoad] = useState(priority);
+  const [shouldLoad, setShouldLoad] = useState(() => priority || typeof IntersectionObserver === 'undefined');
   const imageRef = useRef(null);
 
   useEffect(() => {
     if (priority || shouldLoad) {
-      return undefined;
-    }
-
-    if (typeof IntersectionObserver === 'undefined') {
-      setShouldLoad(true);
       return undefined;
     }
 
@@ -106,6 +110,10 @@ const App = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [activeWorkIndex, setActiveWorkIndex] = useState(0);
+  const [workOrientations, setWorkOrientations] = useState({});
+  const workMainSwiperRef = useRef(null);
+  const workBgSwiperRef = useRef(null);
 
   const heroPhoto = photoLoaders[HERO_PATH];
 
@@ -167,6 +175,7 @@ const App = () => {
         const gallery = sortedFiles
           .filter((file) => file.path !== coverFile.path)
           .map((file) => file.loader);
+        const backgroundImage = gallery[0] || coverFile.loader;
 
         const match = folderName.match(SHOOT_FOLDER_RE);
         const slug = match ? match[4] : folderName;
@@ -176,6 +185,7 @@ const App = () => {
           title: toTitleCase(slug),
           category: "Creative Shoot",
           image: coverFile.loader,
+          backgroundImage,
           gallery,
         };
       })
@@ -203,6 +213,104 @@ const App = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (shoots.length === 0) {
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const resolveOrientation = async () => {
+      const orientationEntries = await Promise.all(
+        shoots.map(async (item) => {
+          try {
+            const src = await item.image();
+            const orientation = await new Promise((resolve) => {
+              const probeImage = new Image();
+              probeImage.onload = () => {
+                resolve(probeImage.naturalWidth > probeImage.naturalHeight ? "landscape" : "portrait");
+              };
+              probeImage.onerror = () => resolve("portrait");
+              probeImage.src = src;
+            });
+
+            return [item.id, orientation];
+          } catch {
+            return [item.id, "portrait"];
+          }
+        })
+      );
+
+      if (isMounted) {
+        setWorkOrientations(Object.fromEntries(orientationEntries));
+      }
+    };
+
+    resolveOrientation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shoots]);
+
+  const refreshWorkSliderLayout = (swiper) => {
+    if (!swiper) {
+      return;
+    }
+
+    const targetIndex = Number.isFinite(swiper.realIndex) ? swiper.realIndex : swiper.activeIndex || 0;
+    swiper.update();
+    swiper.slideTo(targetIndex, 0, false);
+  };
+
+  useEffect(() => {
+    const swiper = workMainSwiperRef.current;
+
+    if (!swiper || shoots.length === 0) {
+      return undefined;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      refreshWorkSliderLayout(swiper);
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [workOrientations, shoots.length]);
+
+  const goHome = () => {
+    setSelectedProject(null);
+    setIsMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleWorkSlideChange = (swiper) => {
+    const nextIndex = swiper.realIndex;
+    setActiveWorkIndex(nextIndex);
+
+    if (!workBgSwiperRef.current || workBgSwiperRef.current.activeIndex === nextIndex) {
+      return;
+    }
+
+    workBgSwiperRef.current.slideTo(nextIndex);
+  };
+
+  const handleWorkSlideClick = (index) => {
+    const swiper = workMainSwiperRef.current;
+    const project = shoots[index];
+
+    if (!swiper || !project) {
+      return;
+    }
+
+    if (swiper.realIndex === index) {
+      setSelectedProject(project);
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    swiper.slideTo(index);
+  };
+
   if (!heroPhoto) {
     return null;
   }
@@ -214,20 +322,25 @@ const App = () => {
     transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] }
   };
 
+  const safeWorkIndex = shoots.length > 0 ? activeWorkIndex % shoots.length : 0;
+  const activeWorkProject = shoots[safeWorkIndex];
+  const currentWorkCounter = shoots.length > 0 ? toCounterValue(safeWorkIndex + 1) : "00";
+  const totalWorkCounter = toCounterValue(shoots.length);
+
   return (
     <div className="min-h-screen bg-[#E5EAEF] text-[#1A1F2B] font-sans selection:bg-[#5F7A91] selection:text-white overflow-x-hidden">
       {/* Navigation */}
       <nav className={`fixed w-full z-[100] transition-all duration-700 px-6 py-4 flex justify-between items-center ${scrolled || selectedProject ? 'bg-[#E5EAEF]/90 backdrop-blur-md py-3 border-b border-[#1A1F2B]/5 shadow-sm' : 'bg-transparent'}`}>
-        <motion.div 
-          onClick={() => setSelectedProject(null)}
-          className={`text-xl font-bold tracking-[0.3em] uppercase cursor-pointer transition-colors duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
+        <Motion.div 
+          onClick={goHome}
+          className={`text-xl font-bold tracking-[0.3em] uppercase cursor-pointer transition-all duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B] opacity-100 pointer-events-auto' : 'text-white opacity-0 pointer-events-none'}`}>
           ASHLEY WACHTENDONK
-        </motion.div>
+        </Motion.div>
         
-        <div className={`hidden md:flex gap-12 items-center text-[10px] uppercase tracking-[0.25em] font-medium transition-colors duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
-          <button onClick={() => setSelectedProject(null)} className="hover:text-[#5F7A91] transition-colors">Home</button>
+        <div className={`hidden md:flex gap-12 items-center text-[15px] uppercase tracking-[0.25em] font-medium transition-colors duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
+          <button onClick={goHome} className="hover:text-[#5F7A91] transition-colors">HOME</button>
           <a href="#work" onClick={() => setSelectedProject(null)} className="hover:text-[#5F7A91] transition-colors">Portfolio</a>
-          <a href="#contact" className="hover:text-[#5F7A91] transition-colors border-b border-current pb-1">Contact</a>
+          <a href="#contact" className="hover:text-[#5F7A91] transition-colors">Contact</a>
         </div>
 
         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`md:hidden p-2 transition-colors duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
@@ -238,43 +351,41 @@ const App = () => {
       {/* Mobile Menu */}
       <AnimatePresence>
         {isMenuOpen && (
-          <motion.div 
+          <Motion.div 
             initial={{ y: "-100%" }} animate={{ y: 0 }} exit={{ y: "-100%" }}
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-0 bg-[#E5EAEF] z-[110] flex flex-col justify-center items-center gap-10"
           >
             <button onClick={() => setIsMenuOpen(false)} className="absolute top-6 right-6 p-2 text-[#1A1F2B]"><X size={24} /></button>
-            <button onClick={() => {setSelectedProject(null); setIsMenuOpen(false)}} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Home</button>
+            <button onClick={goHome} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Home</button>
             <a href="#work" onClick={() => {setSelectedProject(null); setIsMenuOpen(false)}} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Portfolio</a>
             <a href="#contact" onClick={() => setIsMenuOpen(false)} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Contact</a>
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {!selectedProject ? (
-          <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <Motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {/* HERO SECTION - Using User Uploaded Image Background */}
             <section className="relative h-screen w-full flex items-center justify-center overflow-hidden bg-[#1A1F2B]">
               <div className="absolute inset-0 w-full h-full">
                 <LazyPhoto
                   loader={heroPhoto}
                   alt="Ashley Wachtendonk Hero" 
-                  className="w-full h-full object-cover object-[center_17%] opacity-80 brightness-[0.9] contrast-[1.05]"
+                  className="w-full h-full object-cover object-[center_3%] opacity-100 brightness-[0.9] contrast-[1.05]"
                   priority
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-[#1A1F2B]/40 via-transparent to-[#1A1F2B]/60"></div>
               </div>
               <div className="relative z-10 text-center px-6">
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2 }}>
-                  <h1 className="text-white text-4xl md:text-8xl lg:text-9xl font-serif tracking-[0.05em] uppercase leading-none drop-shadow-2xl italic">
+                <Motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2 }}>
+                  <h1 className="text-white text-4xl md:text-8xl lg:text-8xl font-tt-commons-expanded-thin tracking-tighter uppercase leading-none drop-shadow-2xl">
                     ASHLEY WACHTENDONK
                   </h1>
-                  <p className="mt-4 text-white/90 text-[10px] md:text-xs uppercase tracking-[1em] font-light font-sans pl-[1em]">MODEL</p>
-                  <div className="mt-14">
-                    <a href="#work" className="inline-block px-12 py-3.5 border border-white/50 text-white rounded-full text-[10px] uppercase tracking-[0.4em] hover:bg-white hover:text-[#1A1F2B] transition-all duration-500 backdrop-blur-sm">View Work</a>
-                  </div>
-                </motion.div>
+                  <p className="mt-4 text-white/90 text-[10px] md:text-xs uppercase tracking-[1em] font-light font-sans pl-[1em]">MODEL / ARCHITECT</p>
+              
+                </Motion.div>
               </div>
               <div className="absolute bottom-8 w-full px-10 flex justify-between items-end text-white/60 text-[9px] uppercase tracking-[0.3em]">
                 <div className="hidden md:block">BASED IN MILWAUKEE/CHICAGO</div>
@@ -285,37 +396,142 @@ const App = () => {
               </div>
             </section>
 
-            {/* PORTFOLIO GRID */}
-            <section id="work" className="py-24 px-6 max-w-7xl mx-auto">
-              <motion.div {...fadeUp} className="mb-16">
-                <span className="text-[10px] uppercase tracking-[0.5em] text-[#5F7A91] mb-4 block font-bold">Selection</span>
-                <h2 className="text-4xl md:text-5xl font-serif italic tracking-widest text-[#1A1F2B]">Portfolio & Work</h2>
-              </motion.div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-y-16">
-                {shoots.map((item, index) => (
-                  <motion.div 
-                    key={item.id}
-                    initial={{ opacity: 0, y: 30 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: (index % 3) * 0.1 }}
-                    viewport={{ once: true }}
-                    onClick={() => {
-                      setSelectedProject(item);
-                      window.scrollTo(0, 0);
+            {/* PORTFOLIO SLIDER */}
+            <section id="work" className="work-slider-section">
+              <div className="work-slider-shell">
+                <div className="work-slider-bg">
+                  <Swiper
+                    className="work-slider-bg-swiper"
+                    modules={[EffectFade, A11y]}
+                    effect="fade"
+                    fadeEffect={{ crossFade: true }}
+                    speed={1250}
+                    allowTouchMove={false}
+                    onSwiper={(swiper) => {
+                      workBgSwiperRef.current = swiper;
                     }}
-                    className={`group cursor-pointer ${index % 2 !== 0 ? 'md:mt-12' : ''}`}
                   >
-                    <div className="relative overflow-hidden aspect-[4/5] bg-[#CED6DE] mb-6 shadow-sm">
-                      <LazyPhoto loader={item.image} alt={item.title} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" />
-                      <div className="absolute inset-0 bg-[#1A1F2B]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center">
-                        <span className="text-white text-[9px] uppercase tracking-[0.4em] border border-white/40 px-6 py-2 rounded-full backdrop-blur-md">View Shoot</span>
-                      </div>
+                    {shoots.map((item, index) => (
+                      <SwiperSlide key={`${item.id}-bg`}>
+                        <LazyPhoto
+                          loader={item.backgroundImage}
+                          alt={`${item.title} background`}
+                          className="work-slider-bg-image"
+                          priority={index === 0}
+                        />
+                      </SwiperSlide>
+                    ))}
+                  </Swiper>
+                  <div className="work-slider-bg-overlay" />
+                </div>
+
+                <div className="work-slider-content">
+                  <Motion.div {...fadeUp} className="work-slider-head">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-[0.5em] text-[#5F7A91] mb-4 block font-bold">Selection</span>
+                      <h2 className="text-4xl md:text-5xl font-tt-commons-expanded-thin tracking-tighter text-[#1A1F2B]">
+                        Portfolio & Work
+                      </h2>
                     </div>
-                    <h3 className="text-[10px] md:text-[11px] uppercase tracking-[0.4em] font-bold text-[#1A1F2B] mb-1">{item.title}</h3>
-                    <p className="text-[9px] uppercase tracking-[0.2em] text-[#5F7A91]">{item.category}</p>
-                  </motion.div>
-                ))}
+                    <div className="work-slider-counter text-[#1A1F2B]">
+                      <span className="font-tt-commons-expanded-thin">{currentWorkCounter}</span>
+                      <span className="opacity-50">/</span>
+                      <span className="opacity-70">{totalWorkCounter}</span>
+                    </div>
+                  </Motion.div>
+
+                  <div className="work-slider-main-wrap">
+                    <Swiper
+                      className="work-slider-main"
+                      modules={[EffectCreative, Navigation, Pagination, A11y]}
+                      effect="creative"
+                      speed={1250}
+                      rewind={shoots.length > 1}
+                      loop={false}
+                      centeredSlides
+                      centeredSlidesBounds={false}
+                      slidesPerView="auto"
+                      grabCursor
+                      allowTouchMove={shoots.length > 1}
+                      watchSlidesProgress
+                      creativeEffect={{
+                        prev: {
+                          translate: ['-120%', 0, -500],
+                          opacity: 0
+                        },
+                        next: {
+                          translate: ['120%', 0, -500],
+                          opacity: 0
+                        }
+                      }}
+                      navigation={{
+                        prevEl: '.work-slider-prev',
+                        nextEl: '.work-slider-next'
+                      }}
+                      pagination={{
+                        el: '.work-slider-pagination',
+                        clickable: true,
+                        bulletClass: 'work-slider-bullet',
+                        bulletActiveClass: 'is-active'
+                      }}
+                      onResize={(swiper) => refreshWorkSliderLayout(swiper)}
+                      onSwiper={(swiper) => {
+                        workMainSwiperRef.current = swiper;
+                        refreshWorkSliderLayout(swiper);
+                        setActiveWorkIndex(swiper.realIndex);
+                      }}
+                      onSlideChange={handleWorkSlideChange}
+                    >
+                      {shoots.map((item, index) => (
+                        <SwiperSlide
+                          key={item.id}
+                          className={`work-slider-main-slide ${workOrientations[item.id] === 'landscape' ? 'is-landscape' : ''}`}
+                        >
+                          {({ isActive }) => (
+                            <div className="work-slider-slide-stack">
+                              <button
+                                type="button"
+                                className="work-slider-card group"
+                                onClick={() => handleWorkSlideClick(index)}
+                                aria-label={isActive ? `Open ${item.title}` : `Go to ${item.title}`}
+                              >
+                                <LazyPhoto loader={item.image} alt={item.title} className="work-slider-main-image" />
+                              </button>
+                              <button
+                                type="button"
+                                className={`work-slider-view-btn text-white text-[9px] uppercase tracking-[0.4em] border border-white/40 px-5 py-2 backdrop-blur-md ${isActive ? 'is-active' : ''}`}
+                                onClick={() => handleWorkSlideClick(index)}
+                                aria-label={`View photos for ${item.title}`}
+                              >
+                                View Photos
+                              </button>
+                            </div>
+                          )}
+                        </SwiperSlide>
+                      ))}
+                    </Swiper>
+                  </div>
+
+                  <div className="work-slider-bottom">
+                    {activeWorkProject && (
+                      <div className="work-slider-project-meta">
+                        <h3 className="text-sm md:text-lg uppercase tracking-[0.3em] font-bold text-[#1A1F2B] mb-2">
+                          {activeWorkProject.title}
+                        </h3>
+                        <p className="text-[11px] md:text-sm uppercase tracking-[0.26em] text-[#5F7A91] font-medium">
+                          {activeWorkProject.category}
+                        </p>
+                      </div>
+                    )}
+                    <div className="work-slider-controls">
+                      <div className="work-slider-btn-wrap">
+                        <button type="button" className="work-slider-btn work-slider-prev">Prev</button>
+                        <button type="button" className="work-slider-btn work-slider-next">Next</button>
+                      </div>
+                      <div className="work-slider-pagination" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -326,10 +542,10 @@ const App = () => {
                   
                   {/* Left Column Stats */}
                   <div className="lg:col-span-5 pt-8">
-                    <motion.div {...fadeUp}>
+                    <Motion.div {...fadeUp}>
                       <div className="flex items-center gap-6 mb-20">
                         <div className="w-[1px] h-12 bg-[#5F7A91]"></div>
-                        <h2 className="text-4xl font-light tracking-[0.1em] uppercase">Measurements</h2>
+                        <h2 className="text-4xl font-tt-commons-expanded-thin tracking-tighter uppercase">Measurements</h2>
                       </div>
 
                       <div className="grid grid-cols-2 gap-x-12 gap-y-16">
@@ -343,12 +559,12 @@ const App = () => {
                           { label: 'Hair', value: 'Dark Blonde' }
                         ].map((stat, i) => (
                           <div key={i} className="space-y-4">
-                            <p className="text-[10px] uppercase tracking-[0.5em] text-white/30 font-bold">{stat.label}</p>
-                            <p className="text-xl md:text-2xl font-serif italic tracking-tight text-[#CED6DE]">{stat.value}</p>
+                            <p className="text-[10px] uppercase tracking-[0.5em] text-white/30 font-tt-commons-expanded-thin">{stat.label}</p>
+                            <p className="text-xl md:text-2xl font-tt-commons-expanded-thin tracking-tight text-[#CED6DE]">{stat.value}</p>
                           </div>
                         ))}
                       </div>
-                    </motion.div>
+                    </Motion.div>
                   </div>
 
                   {/* Right Column Digitals Grid */}
@@ -359,7 +575,7 @@ const App = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-6">
-                      <motion.div 
+                      <Motion.div 
                         initial={{ opacity: 0, scale: 0.98 }}
                         whileInView={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 1.2 }}
@@ -367,12 +583,12 @@ const App = () => {
                         className="aspect-[4/5] md:aspect-[3/4] bg-white/5 overflow-hidden"
                       >
                         {digitalImages[0] && (
-                          <LazyPhoto loader={digitalImages[0]} className="w-full h-full object-cover grayscale opacity-80 hover:opacity-100 transition-opacity duration-700" alt="Ashley Digital" />
+                          <LazyPhoto loader={digitalImages[0]} className="w-full h-full object-cover object-[center_90%] hover:opacity-100 transition-opacity duration-700" alt="Ashley Digital" />
                         )}
-                      </motion.div>
+                      </Motion.div>
 
                       <div className="grid grid-rows-2 gap-6">
-                        <motion.div 
+                        <Motion.div 
                           initial={{ opacity: 0, x: 20 }}
                           whileInView={{ opacity: 1, x: 0 }}
                           transition={{ duration: 0.8, delay: 0.2 }}
@@ -380,10 +596,10 @@ const App = () => {
                           className="aspect-square bg-white/5 overflow-hidden"
                         >
                           {digitalImages[1] && (
-                            <LazyPhoto loader={digitalImages[1]} className="w-full h-full object-cover grayscale opacity-70 hover:opacity-100 transition-opacity duration-700" alt="Ashley Profile" />
+                            <LazyPhoto loader={digitalImages[1]} className="w-full h-full object-cover hover:opacity-100 transition-opacity duration-700" alt="Ashley Profile" />
                           )}
-                        </motion.div>
-                        <motion.div 
+                        </Motion.div>
+                        <Motion.div 
                           initial={{ opacity: 0, x: 20 }}
                           whileInView={{ opacity: 1, x: 0 }}
                           transition={{ duration: 0.8, delay: 0.4 }}
@@ -391,9 +607,9 @@ const App = () => {
                           className="aspect-square bg-white/5 overflow-hidden"
                         >
                           {digitalImages[2] && (
-                            <LazyPhoto loader={digitalImages[2]} className="w-full h-full object-cover grayscale opacity-70 hover:opacity-100 transition-opacity duration-700" alt="Ashley Full Body" />
+                            <LazyPhoto loader={digitalImages[2]} className="w-full h-full object-cover hover:opacity-100 transition-opacity duration-700" alt="Ashley Full Body" />
                           )}
-                        </motion.div>
+                        </Motion.div>
                       </div>
                     </div>
                   </div>
@@ -403,18 +619,18 @@ const App = () => {
 
             {/* FOOTER */}
             <footer id="contact" className="py-40 px-6 bg-[#E5EAEF] text-center">
-              <motion.div {...fadeUp} className="max-w-5xl mx-auto">
+              <Motion.div {...fadeUp} className="max-w-5xl mx-auto">
                 <span className="text-[10px] uppercase tracking-[0.8em] text-[#5F7A91] block mb-12 font-bold">Booking</span>
-                <a href="mailto:wachtendonkashley@gmail.com" className="text-4xl md:text-7xl lg:text-7xl font-serif italic hover:text-[#5F7A91] transition-all duration-700 tracking-tighter block mb-20 text-[#1A1F2B]">wachtendonkashley@gmail.com</a>
-                <div className="flex justify-center gap-12 text-[10px] uppercase tracking-[0.5em] font-bold">
+                <a href="mailto:wachtendonkashley@gmail.com" className="text-4xl md:text-7xl lg:text-7xl font-tt-commons-expanded-thin hover:text-[#5F7A91] transition-all duration-700 tracking-tighter block mb-20 text-[#1A1F2B]">wachtendonkashley@gmail.com</a>
+                <div className="flex justify-center gap-12 text-[10px] uppercase tracking-[0.5em] font-tt-commons-expanded-thin">
                   <a href="https://www.instagram.com/ajmwachtendonk/" className="hover:text-[#5F7A91]">Instagram</a>
                 </div>
-              </motion.div>
+              </Motion.div>
             </footer>
-          </motion.div>
+          </Motion.div>
         ) : (
           /* PROJECT DETAIL VIEW */
-          <motion.div 
+          <Motion.div 
             key="project" initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -100 }}
             className="pt-24 pb-32 min-h-screen bg-white"
           >
@@ -448,12 +664,12 @@ const App = () => {
               {/* Shoot Gallery */}
               <div className="space-y-24 max-w-5xl mx-auto">
                 {selectedProject.gallery.length > 0 ? selectedProject.gallery.map((loader, i) => (
-                  <motion.div 
+                  <Motion.div 
                     key={i} initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
                     className="w-full overflow-hidden"
                   >
                     <LazyPhoto loader={loader} className="w-full h-auto object-cover grayscale hover:grayscale-0 transition-all duration-1000" alt={`Shoot view ${i}`} />
-                  </motion.div>
+                  </Motion.div>
                 )) : (
                   <div className="py-40 text-center opacity-20 uppercase tracking-[0.5em] text-sm italic">Gallery images loading</div>
                 )}
@@ -468,7 +684,7 @@ const App = () => {
                 </button>
               </div>
             </div>
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
     </div>
