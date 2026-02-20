@@ -84,6 +84,7 @@ html {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .work-slider-main {
@@ -161,16 +162,41 @@ html {
 .work-slider-view-btn {
   border-radius: 0;
   opacity: 0.45;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   transition: opacity 0.35s ease, transform 0.35s ease;
   transform: translateY(-2px);
   white-space: nowrap;
+  position: relative;
+  z-index: 20;
 }
 
 .work-slider-view-btn.is-active {
   opacity: 1;
-  pointer-events: auto;
   transform: translateY(0);
+}
+
+.work-slider-view-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+.work-slider-cover-hit {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(60vw, 26rem);
+  height: clamp(32rem, 69vh, 40rem);
+  border: 0;
+  background: transparent;
+  z-index: 10;
+  cursor: pointer;
+}
+
+.work-slider-cover-hit.is-landscape {
+  width: min(90vw, 39rem);
 }
 
 .work-slider-bottom {
@@ -269,6 +295,15 @@ html {
 
   .work-slider-main-slide.is-landscape {
     width: min(123vw, 30rem) !important;
+  }
+
+  .work-slider-cover-hit {
+    width: min(82vw, 20rem);
+    height: clamp(24rem, 56vh, 31rem);
+  }
+
+  .work-slider-cover-hit.is-landscape {
+    width: min(123vw, 30rem);
   }
 
   .work-slider-bottom {

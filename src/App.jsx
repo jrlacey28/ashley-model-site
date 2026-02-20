@@ -3,6 +3,7 @@ import { Menu, X, ArrowLeft } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { A11y, EffectCreative, EffectFade, Navigation, Pagination } from 'swiper/modules';
+import { DEFAULT_PROJECT_CONTENT, PROJECT_CONTENT } from './projectContent';
 import 'swiper/css';
 import 'swiper/css/effect-creative';
 import 'swiper/css/effect-fade';
@@ -13,6 +14,7 @@ const HERO_PATH = "./assets/photos/A.Wachtendonk-17.JPG";
 const SHOOT_FOLDER_RE = /^(\d{4})-(\d{2})-(\d{2})-(.+)$/;
 const coverRegex = /^cover\.(jpg|jpeg|png)$/i;
 const PHOTO_ROOT_PREFIX = "./assets/photos/";
+const PROJECT_PATH_PREFIX = "/portfolio/";
 
 const photoLoaders = import.meta.glob("./assets/photos/**/*.{jpg,JPG,jpeg,png}", {
   import: "default"
@@ -20,12 +22,44 @@ const photoLoaders = import.meta.glob("./assets/photos/**/*.{jpg,JPG,jpeg,png}",
 
 const toTitleCase = (value) =>
   value
-    .split(/[-_]+/)
+    .split(/[\s_-]+/)
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
 const toCounterValue = (value) => value.toString().padStart(2, "0");
+
+const toRouteSlug = (value) =>
+  value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const normalizePathname = (value) => {
+  if (!value || value === "/") {
+    return "/";
+  }
+
+  const withLeadingSlash = value.startsWith("/") ? value : `/${value}`;
+  return withLeadingSlash.replace(/\/+$/, "") || "/";
+};
+
+const getProjectSlugFromPathname = (pathname) => {
+  const match = pathname.match(/^\/portfolio\/([^/]+)\/?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(match[1]).toLowerCase();
+  } catch {
+    return match[1].toLowerCase();
+  }
+};
+
+const getProjectPath = (projectSlug) => `${PROJECT_PATH_PREFIX}${encodeURIComponent(projectSlug)}`;
 
 const getFolderDateValue = (folderName) => {
   const match = folderName.match(SHOOT_FOLDER_RE);
@@ -109,7 +143,8 @@ const LazyPhoto = React.memo(({ loader, alt, className, priority = false }) => {
 const App = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [pathname, setPathname] = useState(() => normalizePathname(window.location.pathname));
+  const [pendingSectionId, setPendingSectionId] = useState(null);
   const [activeWorkIndex, setActiveWorkIndex] = useState(0);
   const [workOrientations, setWorkOrientations] = useState({});
   const workMainSwiperRef = useRef(null);
@@ -178,12 +213,23 @@ const App = () => {
         const backgroundImage = gallery[0] || coverFile.loader;
 
         const match = folderName.match(SHOOT_FOLDER_RE);
-        const slug = match ? match[4] : folderName;
+        const folderSlug = match ? match[4] : folderName;
+        const routeSlug = toRouteSlug(folderSlug);
+        const projectContent = PROJECT_CONTENT[routeSlug] ?? {};
+        const title = projectContent.title ?? toTitleCase(folderSlug);
+        const category = projectContent.category ?? DEFAULT_PROJECT_CONTENT.category;
+        const header = projectContent.header ?? category ?? DEFAULT_PROJECT_CONTENT.header;
+        const subtext = projectContent.subtext ?? DEFAULT_PROJECT_CONTENT.subtext;
+        const description = projectContent.description ?? DEFAULT_PROJECT_CONTENT.description;
 
         return {
           id: folderName,
-          title: toTitleCase(slug),
-          category: "Creative Shoot",
+          routeSlug,
+          title,
+          header,
+          subtext,
+          category,
+          description,
           image: coverFile.loader,
           backgroundImage,
           gallery,
@@ -201,6 +247,43 @@ const App = () => {
       digitalImages: sortedDigitals,
     };
   }, []);
+
+  const isProjectRoute = pathname.startsWith(PROJECT_PATH_PREFIX);
+  const routeProjectSlug = useMemo(() => getProjectSlugFromPathname(pathname), [pathname]);
+  const selectedProject = useMemo(() => {
+    if (!routeProjectSlug) {
+      return null;
+    }
+
+    return shoots.find((item) => item.routeSlug === routeProjectSlug) ?? null;
+  }, [shoots, routeProjectSlug]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPathname(normalizePathname(window.location.pathname));
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingSectionId || pathname !== "/") {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const section = document.getElementById(pendingSectionId);
+
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      setPendingSectionId(null);
+    }, 80);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pathname, pendingSectionId]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -277,10 +360,60 @@ const App = () => {
     return () => window.cancelAnimationFrame(rafId);
   }, [workOrientations, shoots.length]);
 
+  const navigateTo = (nextPath, options = {}) => {
+    const { replace = false } = options;
+    const normalizedPath = normalizePathname(nextPath);
+    const currentPath = normalizePathname(window.location.pathname);
+
+    if (currentPath !== normalizedPath) {
+      const historyMethod = replace ? "replaceState" : "pushState";
+      window.history[historyMethod](null, "", normalizedPath);
+    }
+
+    setPathname(normalizedPath);
+  };
+
   const goHome = () => {
-    setSelectedProject(null);
+    setPendingSectionId(null);
     setIsMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigateTo("/");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const goToSection = (sectionId) => {
+    setIsMenuOpen(false);
+
+    if (pathname !== "/") {
+      if (sectionId === "work" && selectedProject) {
+        const selectedIndex = shoots.findIndex((item) => item.id === selectedProject.id);
+
+        if (selectedIndex >= 0) {
+          setActiveWorkIndex(selectedIndex);
+        }
+      }
+
+      setPendingSectionId(sectionId);
+      navigateTo("/");
+      return;
+    }
+
+    setPendingSectionId(null);
+    const section = document.getElementById(sectionId);
+
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const openActiveProject = () => {
+    if (!activeWorkProject) {
+      return;
+    }
+
+    setPendingSectionId(null);
+    setIsMenuOpen(false);
+    navigateTo(getProjectPath(activeWorkProject.routeSlug));
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   const handleWorkSlideChange = (swiper) => {
@@ -292,23 +425,6 @@ const App = () => {
     }
 
     workBgSwiperRef.current.slideTo(nextIndex);
-  };
-
-  const handleWorkSlideClick = (index) => {
-    const swiper = workMainSwiperRef.current;
-    const project = shoots[index];
-
-    if (!swiper || !project) {
-      return;
-    }
-
-    if (swiper.realIndex === index) {
-      setSelectedProject(project);
-      window.scrollTo(0, 0);
-      return;
-    }
-
-    swiper.slideTo(index);
   };
 
   if (!heroPhoto) {
@@ -326,24 +442,26 @@ const App = () => {
   const activeWorkProject = shoots[safeWorkIndex];
   const currentWorkCounter = shoots.length > 0 ? toCounterValue(safeWorkIndex + 1) : "00";
   const totalWorkCounter = toCounterValue(shoots.length);
+  const selectedProjectOrientation = selectedProject ? workOrientations[selectedProject.id] ?? "landscape" : "landscape";
+  const isSelectedProjectPortrait = selectedProjectOrientation === "portrait";
 
   return (
     <div className="min-h-screen bg-[#E5EAEF] text-[#1A1F2B] font-sans selection:bg-[#5F7A91] selection:text-white overflow-x-hidden">
       {/* Navigation */}
-      <nav className={`fixed w-full z-[100] transition-all duration-700 px-6 py-4 flex justify-between items-center ${scrolled || selectedProject ? 'bg-[#E5EAEF]/90 backdrop-blur-md py-3 border-b border-[#1A1F2B]/5 shadow-sm' : 'bg-transparent'}`}>
+      <nav className={`fixed w-full z-[100] transition-all duration-700 px-6 py-4 flex justify-between items-center ${scrolled || isProjectRoute ? 'bg-[#E5EAEF]/90 backdrop-blur-md py-3 border-b border-[#1A1F2B]/5 shadow-sm' : 'bg-transparent'}`}>
         <Motion.div 
           onClick={goHome}
-          className={`text-xl font-bold tracking-[0.3em] uppercase cursor-pointer transition-all duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B] opacity-100 pointer-events-auto' : 'text-white opacity-0 pointer-events-none'}`}>
+          className={`text-xl font-bold tracking-[0.3em] uppercase cursor-pointer transition-all duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B] opacity-100 pointer-events-auto' : 'text-white opacity-0 pointer-events-none'}`}>
           ASHLEY WACHTENDONK
         </Motion.div>
         
-        <div className={`hidden md:flex gap-12 items-center text-[15px] uppercase tracking-[0.25em] font-medium transition-colors duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
+        <div className={`hidden md:flex gap-12 items-center text-[15px] uppercase tracking-[0.25em] font-medium transition-colors duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
           <button onClick={goHome} className="hover:text-[#5F7A91] transition-colors">HOME</button>
-          <a href="#work" onClick={() => setSelectedProject(null)} className="hover:text-[#5F7A91] transition-colors">Portfolio</a>
-          <a href="#contact" className="hover:text-[#5F7A91] transition-colors">Contact</a>
+          <button onClick={() => goToSection("work")} className="hover:text-[#5F7A91] transition-colors">Portfolio</button>
+          <button onClick={() => goToSection("contact")} className="hover:text-[#5F7A91] transition-colors">Contact</button>
         </div>
 
-        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`md:hidden p-2 transition-colors duration-500 ${(selectedProject || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
+        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`md:hidden p-2 transition-colors duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
           {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </nav>
@@ -358,14 +476,14 @@ const App = () => {
           >
             <button onClick={() => setIsMenuOpen(false)} className="absolute top-6 right-6 p-2 text-[#1A1F2B]"><X size={24} /></button>
             <button onClick={goHome} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Home</button>
-            <a href="#work" onClick={() => {setSelectedProject(null); setIsMenuOpen(false)}} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Portfolio</a>
-            <a href="#contact" onClick={() => setIsMenuOpen(false)} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Contact</a>
+            <button onClick={() => goToSection("work")} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Portfolio</button>
+            <button onClick={() => goToSection("contact")} className="text-4xl uppercase tracking-[0.2em] font-light text-[#1A1F2B]">Contact</button>
           </Motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence mode="wait">
-        {!selectedProject ? (
+        {!isProjectRoute ? (
           <Motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {/* HERO SECTION - Using User Uploaded Image Background */}
             <section className="relative h-screen w-full flex items-center justify-center overflow-hidden bg-[#1A1F2B]">
@@ -409,6 +527,11 @@ const App = () => {
                     allowTouchMove={false}
                     onSwiper={(swiper) => {
                       workBgSwiperRef.current = swiper;
+                      const initialIndex = Math.min(activeWorkIndex, Math.max(shoots.length - 1, 0));
+
+                      if (initialIndex > 0) {
+                        swiper.slideTo(initialIndex, 0, false);
+                      }
                     }}
                   >
                     {shoots.map((item, index) => (
@@ -451,8 +574,12 @@ const App = () => {
                       centeredSlides
                       centeredSlidesBounds={false}
                       slidesPerView="auto"
-                      grabCursor
-                      allowTouchMove={shoots.length > 1}
+                      grabCursor={false}
+                      simulateTouch={false}
+                      allowTouchMove={false}
+                      preventClicks={false}
+                      preventClicksPropagation={false}
+                      touchStartPreventDefault={false}
                       watchSlidesProgress
                       creativeEffect={{
                         prev: {
@@ -478,11 +605,17 @@ const App = () => {
                       onSwiper={(swiper) => {
                         workMainSwiperRef.current = swiper;
                         refreshWorkSliderLayout(swiper);
-                        setActiveWorkIndex(swiper.realIndex);
+                        const initialIndex = Math.min(activeWorkIndex, Math.max(shoots.length - 1, 0));
+
+                        if (initialIndex > 0) {
+                          swiper.slideTo(initialIndex, 0, false);
+                        }
+
+                        setActiveWorkIndex(initialIndex);
                       }}
                       onSlideChange={handleWorkSlideChange}
                     >
-                      {shoots.map((item, index) => (
+                      {shoots.map((item) => (
                         <SwiperSlide
                           key={item.id}
                           className={`work-slider-main-slide ${workOrientations[item.id] === 'landscape' ? 'is-landscape' : ''}`}
@@ -491,17 +624,18 @@ const App = () => {
                             <div className="work-slider-slide-stack">
                               <button
                                 type="button"
-                                className="work-slider-card group"
-                                onClick={() => handleWorkSlideClick(index)}
-                                aria-label={isActive ? `Open ${item.title}` : `Go to ${item.title}`}
+                                className="work-slider-card group block"
+                                onClick={openActiveProject}
+                                aria-label={`Open ${item.title}`}
                               >
                                 <LazyPhoto loader={item.image} alt={item.title} className="work-slider-main-image" />
                               </button>
                               <button
                                 type="button"
                                 className={`work-slider-view-btn text-white text-[9px] uppercase tracking-[0.4em] border border-white/40 px-5 py-2 backdrop-blur-md ${isActive ? 'is-active' : ''}`}
-                                onClick={() => handleWorkSlideClick(index)}
-                                aria-label={`View photos for ${item.title}`}
+                                onClick={openActiveProject}
+                                aria-label={activeWorkProject ? `View photos for ${activeWorkProject.title}` : "View photos"}
+                                disabled={!isActive}
                               >
                                 View Photos
                               </button>
@@ -510,6 +644,14 @@ const App = () => {
                         </SwiperSlide>
                       ))}
                     </Swiper>
+                    {activeWorkProject && (
+                      <button
+                        type="button"
+                        className={`work-slider-cover-hit ${workOrientations[activeWorkProject.id] === 'landscape' ? 'is-landscape' : ''}`}
+                        onClick={openActiveProject}
+                        aria-label={`Open ${activeWorkProject.title}`}
+                      />
+                    )}
                   </div>
 
                   <div className="work-slider-bottom">
@@ -628,15 +770,15 @@ const App = () => {
               </Motion.div>
             </footer>
           </Motion.div>
-        ) : (
+        ) : selectedProject ? (
           /* PROJECT DETAIL VIEW */
           <Motion.div 
-            key="project" initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -100 }}
+            key={selectedProject.routeSlug} initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -100 }}
             className="pt-24 pb-32 min-h-screen bg-white"
           >
             <div className="max-w-7xl mx-auto px-6">
               <button 
-                onClick={() => setSelectedProject(null)}
+                onClick={() => goToSection("work")}
                 className="flex items-center gap-4 text-[10px] uppercase tracking-[0.4em] font-bold mb-16 hover:text-[#5F7A91] transition-colors group"
               >
                 <ArrowLeft size={16} className="group-hover:-translate-x-2 transition-transform" /> Back to Portfolio
@@ -644,31 +786,45 @@ const App = () => {
 
               <div className="grid lg:grid-cols-12 gap-16 mb-24">
                 <div className="lg:col-span-5">
-                  <span className="text-[10px] uppercase tracking-[0.5em] text-[#5F7A91] mb-4 block font-bold">Creative Shoot</span>
+                  <span className="text-[10px] uppercase tracking-[0.5em] text-[#5F7A91] mb-4 block font-bold">{selectedProject.header}</span>
                   <h2 className="text-5xl md:text-7xl font-serif italic mb-8 text-[#1A1F2B]">{selectedProject.title}</h2>
-                  <p className="text-lg opacity-60 leading-relaxed font-light mb-12">
-                    A cinematic exploration of {selectedProject.category.toLowerCase()} aesthetics.
+                  <p className="text-[10px] uppercase tracking-[0.36em] text-[#5F7A91] font-bold mb-6">
+                    {selectedProject.subtext}
                   </p>
-                  <div className="grid grid-cols-2 gap-8 text-[9px] uppercase tracking-[0.3em]">
-                    <div>
-                      <p className="opacity-40 mb-1">Photography</p>
-                      <p className="font-bold font-serif">Studio Noir</p>
-                    </div>
-                  </div>
+                  <p className="text-lg opacity-60 leading-relaxed font-light mb-12">
+                    {selectedProject.description}
+                  </p>
                 </div>
-                <div className="lg:col-span-7 aspect-video bg-[#E5EAEF]">
-                  <LazyPhoto loader={selectedProject.image} className="w-full h-full object-cover shadow-2xl" alt={selectedProject.title} />
+                <div
+                  className={`lg:col-span-7 bg-[#E5EAEF] ${
+                    isSelectedProjectPortrait
+                      ? "aspect-[3/4] w-full max-w-[30rem] mx-auto lg:mx-0 lg:ml-auto"
+                      : "aspect-video"
+                  }`}
+                >
+                  <LazyPhoto
+                    loader={selectedProject.image}
+                    className={`w-full h-full shadow-2xl ${isSelectedProjectPortrait ? "object-contain" : "object-cover"}`}
+                    alt={selectedProject.title}
+                  />
                 </div>
               </div>
 
               {/* Shoot Gallery */}
-              <div className="space-y-24 max-w-5xl mx-auto">
+              <div className="columns-2 gap-6 md:gap-10 max-w-6xl mx-auto">
                 {selectedProject.gallery.length > 0 ? selectedProject.gallery.map((loader, i) => (
-                  <Motion.div 
-                    key={i} initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-                    className="w-full overflow-hidden"
+                  <Motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 50 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="mb-6 md:mb-10 break-inside-avoid overflow-hidden"
                   >
-                    <LazyPhoto loader={loader} className="w-full h-auto object-cover grayscale hover:grayscale-0 transition-all duration-1000" alt={`Shoot view ${i}`} />
+                    <LazyPhoto
+                      loader={loader}
+                      className="w-full h-auto object-cover"
+                      alt={`${selectedProject.title} view ${i + 1}`}
+                    />
                   </Motion.div>
                 )) : (
                   <div className="py-40 text-center opacity-20 uppercase tracking-[0.5em] text-sm italic">Gallery images loading</div>
@@ -677,12 +833,33 @@ const App = () => {
               
               <div className="mt-32 pt-24 border-t border-black/5 text-center">
                  <button 
-                  onClick={() => setSelectedProject(null)}
+                  onClick={() => goToSection("work")}
                   className="px-12 py-4 border border-black/20 rounded-full text-[10px] uppercase tracking-[0.4em] hover:bg-black hover:text-white transition-all"
                 >
                   Return to Portfolio
                 </button>
               </div>
+            </div>
+          </Motion.div>
+        ) : (
+          <Motion.div
+            key="project-not-found"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -100 }}
+            className="pt-24 pb-32 min-h-screen bg-white"
+          >
+            <div className="max-w-3xl mx-auto px-6 text-center">
+              <h2 className="text-4xl md:text-6xl font-serif italic mb-8 text-[#1A1F2B]">Project Not Found</h2>
+              <p className="text-lg opacity-60 leading-relaxed font-light mb-12">
+                The requested portfolio page does not exist.
+              </p>
+              <button
+                onClick={() => goToSection("work")}
+                className="px-12 py-4 border border-black/20 rounded-full text-[10px] uppercase tracking-[0.4em] hover:bg-black hover:text-white transition-all"
+              >
+                Return to Portfolio
+              </button>
             </div>
           </Motion.div>
         )}
