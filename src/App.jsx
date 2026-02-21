@@ -491,8 +491,8 @@ const App = () => {
         
         <div className={`hidden md:flex gap-12 items-center text-[15px] uppercase tracking-[0.25em] font-medium transition-colors duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
           <button onClick={goHome} className="hover:text-[#5F7A91] transition-colors">HOME</button>
-          <button onClick={() => goToSection("work")} className="hover:text-[#5F7A91] transition-colors">Portfolio</button>
-          <button onClick={() => goToSection("contact")} className="hover:text-[#5F7A91] transition-colors">Contact</button>
+          <button onClick={() => goToSection("work")} className="hover:text-[#5F7A91] transition-colors">PORTFOLIO</button>
+          <button onClick={() => goToSection("contact")} className="hover:text-[#5F7A91] transition-colors">CONTACT</button>
         </div>
 
         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`md:hidden ml-2 shrink-0 p-2 transition-colors duration-500 ${(isProjectRoute || scrolled) ? 'text-[#1A1F2B]' : 'text-white'}`}>
