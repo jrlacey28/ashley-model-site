@@ -405,19 +405,51 @@ const App = () => {
     }
   };
 
-  const openActiveProject = () => {
-    if (!activeWorkProject) {
+  const getValidSwiperIndex = (swiper) => {
+    if (shoots.length === 0) {
+      return -1;
+    }
+
+    const realIndex = Number.isFinite(swiper?.realIndex) ? swiper.realIndex : Number.NaN;
+    const activeIndex = Number.isFinite(swiper?.activeIndex) ? swiper.activeIndex : Number.NaN;
+    const fallbackIndex = Number.isFinite(activeWorkIndex) ? activeWorkIndex : 0;
+    const resolvedIndex = Number.isFinite(realIndex)
+      ? realIndex
+      : Number.isFinite(activeIndex)
+        ? activeIndex
+        : fallbackIndex;
+
+    return ((resolvedIndex % shoots.length) + shoots.length) % shoots.length;
+  };
+
+  const openProject = (project) => {
+    if (!project) {
       return;
     }
 
     setPendingSectionId(null);
     setIsMenuOpen(false);
-    navigateTo(getProjectPath(activeWorkProject.routeSlug));
+    navigateTo(getProjectPath(project.routeSlug));
     window.scrollTo({ top: 0, behavior: "auto" });
   };
 
+  const openActiveProject = () => {
+    const slideIndex = getValidSwiperIndex(workMainSwiperRef.current);
+
+    if (slideIndex < 0) {
+      return;
+    }
+
+    openProject(shoots[slideIndex]);
+  };
+
   const handleWorkSlideChange = (swiper) => {
-    const nextIndex = swiper.realIndex;
+    const nextIndex = getValidSwiperIndex(swiper);
+
+    if (nextIndex < 0) {
+      return;
+    }
+
     setActiveWorkIndex(nextIndex);
 
     if (!workBgSwiperRef.current || workBgSwiperRef.current.activeIndex === nextIndex) {
@@ -438,7 +470,9 @@ const App = () => {
     transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] }
   };
 
-  const safeWorkIndex = shoots.length > 0 ? activeWorkIndex % shoots.length : 0;
+  const safeWorkIndex = shoots.length > 0 && Number.isFinite(activeWorkIndex)
+    ? ((activeWorkIndex % shoots.length) + shoots.length) % shoots.length
+    : 0;
   const activeWorkProject = shoots[safeWorkIndex];
   const currentWorkCounter = shoots.length > 0 ? toCounterValue(safeWorkIndex + 1) : "00";
   const totalWorkCounter = toCounterValue(shoots.length);
@@ -577,8 +611,8 @@ const App = () => {
                       grabCursor={shoots.length > 1}
                       simulateTouch={shoots.length > 1}
                       allowTouchMove={shoots.length > 1}
-                      preventClicks={false}
-                      preventClicksPropagation={false}
+                      preventClicks
+                      preventClicksPropagation
                       touchStartPreventDefault={false}
                       threshold={8}
                       watchSlidesProgress
@@ -615,6 +649,25 @@ const App = () => {
                         setActiveWorkIndex(initialIndex);
                       }}
                       onSlideChange={handleWorkSlideChange}
+                      onTap={(swiper, event) => {
+                        const target = event?.target;
+
+                        if (!(target instanceof Element)) {
+                          return;
+                        }
+
+                        if (!target.closest(".work-slider-card, .work-slider-view-btn, .work-slider-cover-hit")) {
+                          return;
+                        }
+
+                        const tappedIndex = getValidSwiperIndex(swiper);
+
+                        if (tappedIndex < 0) {
+                          return;
+                        }
+
+                        openProject(shoots[tappedIndex]);
+                      }}
                     >
                       {shoots.map((item) => (
                         <SwiperSlide
@@ -626,7 +679,7 @@ const App = () => {
                               <button
                                 type="button"
                                 className="work-slider-card group block"
-                                onClick={openActiveProject}
+                                onClick={() => openProject(item)}
                                 aria-label={`Open ${item.title}`}
                               >
                                 <LazyPhoto loader={item.image} alt={item.title} className="work-slider-main-image" />
@@ -634,9 +687,8 @@ const App = () => {
                               <button
                                 type="button"
                                 className={`work-slider-view-btn swiper-no-swiping text-white text-[9px] uppercase tracking-[0.4em] border border-white/40 px-5 py-2 backdrop-blur-md ${isActive ? 'is-active' : ''}`}
-                                onClick={openActiveProject}
-                                aria-label={activeWorkProject ? `View photos for ${activeWorkProject.title}` : "View photos"}
-                                disabled={!isActive}
+                                onClick={() => openProject(item)}
+                                aria-label={`View photos for ${item.title}`}
                               >
                                 View Photos
                               </button>
