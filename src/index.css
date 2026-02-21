@@ -301,7 +301,7 @@ html {
   }
 
   .work-slider-main-slide.is-landscape {
-    width: min(123vw, 30rem) !important;
+    width: min(96vw, 24rem) !important;
   }
 
   .work-slider-cover-hit {
@@ -311,7 +311,7 @@ html {
   }
 
   .work-slider-cover-hit.is-landscape {
-    width: min(123vw, 30rem);
+    width: min(96vw, 24rem);
   }
 
   .work-slider-bottom {

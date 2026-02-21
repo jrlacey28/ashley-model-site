@@ -649,24 +649,16 @@ const App = () => {
                         setActiveWorkIndex(initialIndex);
                       }}
                       onSlideChange={handleWorkSlideChange}
-                      onTap={(swiper, event) => {
-                        const target = event?.target;
-
-                        if (!(target instanceof Element)) {
-                          return;
-                        }
-
-                        if (!target.closest(".work-slider-card, .work-slider-view-btn, .work-slider-cover-hit")) {
-                          return;
-                        }
-
-                        const tappedIndex = getValidSwiperIndex(swiper);
+                      onTap={(swiper) => {
+                        const tappedIndex = Number.isFinite(swiper.clickedIndex)
+                          ? swiper.clickedIndex
+                          : getValidSwiperIndex(swiper);
 
                         if (tappedIndex < 0) {
                           return;
                         }
 
-                        openProject(shoots[tappedIndex]);
+                        openProject(shoots[tappedIndex] ?? shoots[getValidSwiperIndex(swiper)]);
                       }}
                     >
                       {shoots.map((item) => (
